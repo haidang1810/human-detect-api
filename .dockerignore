@@ -1,0 +1,16 @@
+node_modules
+.git
+.gitignore
+.env*
+!.env.example
+dist
+*.db
+*.log
+public/uploads/*
+coverage
+README.md
+DEPLOYMENT.md
+.DS_Store
+.idea
+*.tsbuildinfo
+.cache
