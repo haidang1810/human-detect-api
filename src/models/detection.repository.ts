@@ -88,13 +88,31 @@ export class DetectionRepository {
     stmt.run(id)
   }
 
-  async cleanOldTasks(maxAge: number): Promise<void> {
+  async cleanOldTasks(maxAge: number): Promise<DetectionTask[]> {
     const now = Date.now()
     const cutoff = now - maxAge
 
-    const stmt = this.db.prepare(`
+    // Get tasks to be deleted (to return their image paths)
+    const selectStmt = this.db.prepare(`
+      SELECT * FROM detection_tasks WHERE updated_at < ?
+    `)
+    const rows = selectStmt.all(cutoff) as any[]
+
+    // Delete old tasks
+    const deleteStmt = this.db.prepare(`
       DELETE FROM detection_tasks WHERE updated_at < ?
     `)
-    stmt.run(cutoff)
+    deleteStmt.run(cutoff)
+
+    // Return deleted tasks with their image paths
+    return rows.map(row => ({
+      id: row.id,
+      status: row.status,
+      imagePath: row.image_path,
+      result: row.result ? JSON.parse(row.result) : null,
+      error: row.error,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
   }
 }

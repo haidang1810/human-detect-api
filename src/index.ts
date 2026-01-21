@@ -4,6 +4,7 @@ import { DetectionService } from "./services/detection.service"
 import { DetectionController } from "./controllers/detection.controller"
 import { setupDetectionRoutes } from "./routes/detection.routes"
 import { validateApiKey } from "./middleware/auth.middleware"
+import { createRateLimiter } from "./middleware/ratelimit.middleware"
 import { swaggerSpec } from "./swagger"
 
 // Initialize SQLite database
@@ -29,6 +30,12 @@ redis.on("ready", () => {
 
 const detectionService = new DetectionService(db, redis)
 const detectionController = new DetectionController(detectionService)
+
+// Rate limiter: 100 requests per minute per API key
+const rateLimiter = createRateLimiter(redis, {
+  windowMs: 60 * 1000,
+  maxRequests: 100,
+})
 
 const MAX_TASK_AGE = 24 * 60 * 60 * 1000
 
@@ -85,6 +92,11 @@ Bun.serve({
         const authError = validateApiKey(req)
         if (authError) return authError
 
+        // Rate limiting based on API key
+        const apiKey = req.headers.get("x-api-key") || "anonymous"
+        const rateLimitError = await rateLimiter.checkLimit(apiKey)
+        if (rateLimitError) return rateLimitError
+
         const response = await detectionRoutes["/api/detect/upload"].POST(req)
         const duration = Date.now() - start
         console.log(`${req.method} ${url.pathname} ${response.status} ${duration}ms`)
@@ -94,6 +106,11 @@ Bun.serve({
       if (url.pathname.startsWith("/api/detect/status/") && req.method === "GET") {
         const authError = validateApiKey(req)
         if (authError) return authError
+
+        // Rate limiting based on API key
+        const apiKey = req.headers.get("x-api-key") || "anonymous"
+        const rateLimitError = await rateLimiter.checkLimit(apiKey)
+        if (rateLimitError) return rateLimitError
 
         const response = await detectionRoutes["/api/detect/status/:taskId"].GET(req)
         const duration = Date.now() - start

@@ -10,12 +10,6 @@ tf.setBackend("cpu")
 
 const MAX_CONCURRENT_TASKS = 5
 const JOB_TIMEOUT = 5 * 60 * 1000 // 5 minutes
-const REDIS_CONFIG: any = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: 2
-}
 
 export class DetectionService {
   private human: any
@@ -27,6 +21,15 @@ export class DetectionService {
   constructor(db: Database, redis: Redis) {
     this.repository = new DetectionRepository(db)
     this.redis = redis
+
+    // Reuse the existing Redis connection for BullMQ
+    const redisOptions = {
+      host: redis.options.host,
+      port: redis.options.port,
+      password: redis.options.password,
+      db: redis.options.db,
+      maxRetriesPerRequest: null,
+    }
     this.human = new Human({
       backend: "tensorflow",
       modelBasePath: "file://models/",
@@ -57,7 +60,7 @@ export class DetectionService {
     })
 
     this.queue = new Queue("detection", {
-      connection: REDIS_CONFIG,
+      connection: redisOptions,
       defaultJobOptions: {
         attempts: 3,
         backoff: {
@@ -75,7 +78,7 @@ export class DetectionService {
         return this.processTask(job.data.taskId)
       },
       {
-        connection: REDIS_CONFIG,
+        connection: redisOptions,
         concurrency: MAX_CONCURRENT_TASKS,
         lockDuration: JOB_TIMEOUT,
         stalledInterval: 30000,
@@ -141,9 +144,24 @@ export class DetectionService {
 
       const result = await this.detectFaces(imageData)
       await this.repository.updateStatus(id, "completed", result)
+
+      // Clean up image file after successful processing
+      await this.cleanupImageFile(task.imagePath)
     } catch (error) {
       await this.repository.updateStatus(id, "failed", null, error instanceof Error ? error.message : "Unknown error")
+      // Clean up image file even on failure
+      await this.cleanupImageFile(task.imagePath)
       throw error
+    }
+  }
+
+  private async cleanupImageFile(imagePath: string): Promise<void> {
+    try {
+      const fs = require("fs").promises
+      await fs.unlink(imagePath)
+      console.log(`🗑️  Cleaned up image file: ${imagePath}`)
+    } catch (error) {
+      console.warn(`⚠️  Failed to delete image file ${imagePath}:`, error)
     }
   }
 
@@ -186,7 +204,16 @@ export class DetectionService {
   }
 
   async cleanOldTasks(maxAge: number): Promise<void> {
-    await this.repository.cleanOldTasks(maxAge)
+    const deletedTasks = await this.repository.cleanOldTasks(maxAge)
+
+    // Clean up image files for deleted tasks
+    for (const task of deletedTasks) {
+      await this.cleanupImageFile(task.imagePath)
+    }
+
+    if (deletedTasks.length > 0) {
+      console.log(`🧹 Cleaned up ${deletedTasks.length} old tasks and their image files`)
+    }
   }
 
   async close(): Promise<void> {
