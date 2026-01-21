@@ -1,0 +1,39 @@
+{
+  "name": "example-bun-api",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build:compile": "bun build src/index.ts --compile --outfile dist/book-api",
+    "test": "bun test"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "aws-sdk": "^2.1693.0",
+    "mock-aws-s3": "^4.0.2",
+    "nock": "^14.0.10"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@mediapipe/face_detection": "^0.4.1646425229",
+    "@mediapipe/face_mesh": "^0.4.1633559619",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-converter": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@vladmandic/human": "^3.3.6",
+    "bullmq": "^5.66.5",
+    "dotenv": "^17.2.3",
+    "ioredis": "^5.9.2",
+    "onnxruntime-node": "^1.23.2",
+    "swagger-ui-express": "^5.0.1"
+  }
+}
