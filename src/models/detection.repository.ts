@@ -1,67 +1,59 @@
-import { Database } from "bun:sqlite"
-import type { DetectionTask } from "../types/detection.types"
+import { Db, Collection } from "mongodb"
+import type { DetectionTask, TaskStatus, DetectionResult } from "../types/detection.types"
+
+interface DetectionTaskDocument {
+  _id: string
+  status: TaskStatus
+  imagePath: string
+  result: DetectionResult | null
+  error: string | null
+  createdAt: number
+  updatedAt: number
+}
 
 export class DetectionRepository {
-  private db: Database
+  private collection: Collection<DetectionTaskDocument>
 
-  constructor(db: Database) {
-    this.db = db
+  constructor(db: Db) {
+    this.collection = db.collection<DetectionTaskDocument>("detection_tasks")
     this.initDatabase()
   }
 
-  private initDatabase(): void {
-    this.db.run(`
-      CREATE TABLE IF NOT EXISTS detection_tasks (
-        id TEXT PRIMARY KEY,
-        status TEXT NOT NULL,
-        image_path TEXT NOT NULL,
-        result TEXT,
-        error TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `)
-
-    // Create index for faster queries
-    this.db.run(`
-      CREATE INDEX IF NOT EXISTS idx_updated_at ON detection_tasks(updated_at)
-    `)
+  private async initDatabase(): Promise<void> {
+    // Create index for faster queries on updatedAt
+    await this.collection.createIndex({ updatedAt: 1 })
   }
 
   async save(task: DetectionTask): Promise<void> {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO detection_tasks
-      (id, status, image_path, result, error, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
+    const doc: DetectionTaskDocument = {
+      _id: task.id,
+      status: task.status,
+      imagePath: task.imagePath,
+      result: task.result,
+      error: task.error,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+    }
 
-    stmt.run(
-      task.id,
-      task.status,
-      task.imagePath,
-      task.result ? JSON.stringify(task.result) : null,
-      task.error,
-      task.createdAt,
-      task.updatedAt
+    await this.collection.updateOne(
+      { _id: task.id },
+      { $set: doc },
+      { upsert: true }
     )
   }
 
   async findById(id: string): Promise<DetectionTask | null> {
-    const stmt = this.db.prepare(`
-      SELECT * FROM detection_tasks WHERE id = ?
-    `)
-
-    const row = stmt.get(id) as any
-    if (!row) return null
+    const doc = await this.collection.findOne({ _id: id })
+    if (!doc) return null
 
     return {
-      id: row.id,
-      status: row.status,
-      imagePath: row.image_path,
-      result: row.result ? JSON.parse(row.result) : null,
-      error: row.error,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      id: doc._id,
+      status: doc.status,
+      imagePath: doc.imagePath,
+      result: doc.result,
+      error: doc.error,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
     }
   }
 
@@ -82,10 +74,7 @@ export class DetectionRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const stmt = this.db.prepare(`
-      DELETE FROM detection_tasks WHERE id = ?
-    `)
-    stmt.run(id)
+    await this.collection.deleteOne({ _id: id })
   }
 
   async cleanOldTasks(maxAge: number): Promise<DetectionTask[]> {
@@ -93,26 +82,22 @@ export class DetectionRepository {
     const cutoff = now - maxAge
 
     // Get tasks to be deleted (to return their image paths)
-    const selectStmt = this.db.prepare(`
-      SELECT * FROM detection_tasks WHERE updated_at < ?
-    `)
-    const rows = selectStmt.all(cutoff) as any[]
+    const docs = await this.collection
+      .find({ updatedAt: { $lt: cutoff } })
+      .toArray()
 
     // Delete old tasks
-    const deleteStmt = this.db.prepare(`
-      DELETE FROM detection_tasks WHERE updated_at < ?
-    `)
-    deleteStmt.run(cutoff)
+    await this.collection.deleteMany({ updatedAt: { $lt: cutoff } })
 
     // Return deleted tasks with their image paths
-    return rows.map(row => ({
-      id: row.id,
-      status: row.status,
-      imagePath: row.image_path,
-      result: row.result ? JSON.parse(row.result) : null,
-      error: row.error,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+    return docs.map(doc => ({
+      id: doc._id,
+      status: doc.status,
+      imagePath: doc.imagePath,
+      result: doc.result,
+      error: doc.error,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
     }))
   }
 }

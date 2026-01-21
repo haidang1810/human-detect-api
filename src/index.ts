@@ -1,5 +1,5 @@
 import Redis from "ioredis"
-import { Database } from "bun:sqlite"
+import { connectToMongoDB, closeMongoDBConnection } from "./config/mongodb"
 import { DetectionService } from "./services/detection.service"
 import { DetectionController } from "./controllers/detection.controller"
 import { setupDetectionRoutes } from "./routes/detection.routes"
@@ -7,9 +7,8 @@ import { validateApiKey } from "./middleware/auth.middleware"
 import { createRateLimiter } from "./middleware/ratelimit.middleware"
 import { swaggerSpec } from "./swagger"
 
-// Initialize SQLite database
-const db = new Database("detection.db", { create: true })
-console.log("📦 SQLite database initialized")
+// Initialize MongoDB database
+const db = await connectToMongoDB()
 
 // Initialize Redis for BullMQ
 const redis = new Redis({
@@ -42,6 +41,7 @@ const MAX_TASK_AGE = 24 * 60 * 60 * 1000
 process.on("SIGINT", async () => {
   console.log("\n🛑 Shutting down...")
   await detectionService.close()
+  await closeMongoDBConnection()
   process.exit(0)
 })
 

@@ -2,7 +2,7 @@ import * as tf from "@tensorflow/tfjs"
 import Human from "@vladmandic/human"
 import { Queue, Worker } from "bullmq"
 import Redis from "ioredis"
-import { Database } from "bun:sqlite"
+import { Db } from "mongodb"
 import type { DetectionTask, DetectedPerson, DetectionResult } from "../types/detection.types"
 import { DetectionRepository } from "../models/detection.repository"
 
@@ -18,7 +18,7 @@ export class DetectionService {
   private worker: Worker
   private redis: Redis
 
-  constructor(db: Database, redis: Redis) {
+  constructor(db: Db, redis: Redis) {
     this.repository = new DetectionRepository(db)
     this.redis = redis
 

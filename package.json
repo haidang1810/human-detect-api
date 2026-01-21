@@ -33,6 +33,7 @@
     "bullmq": "^5.66.5",
     "dotenv": "^17.2.3",
     "ioredis": "^5.9.2",
+    "mongodb": "^7.0.0",
     "onnxruntime-node": "^1.23.2",
     "swagger-ui-express": "^5.0.1"
   }
