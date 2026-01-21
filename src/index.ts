@@ -46,7 +46,7 @@ process.on("SIGINT", async () => {
 })
 
 Bun.serve({
-  port: 3000,
+  port: process.env.PORT || 3000,
   development: process.env.NODE_ENV !== "production",
   fetch: async (req) => {
     const start = Date.now()
@@ -140,8 +140,8 @@ console.log("🔧 Warming up models...")
 
 detectionService.warmup().then(() => {
   console.log("✅ Models loaded successfully")
-  console.log("📡 Human Detection API running on http://localhost:3000")
-  console.log("🏥 Health check: http://localhost:3000/health")
+  console.log(`📡 Human Detection API running on http://localhost:${process.env.PORT || 3000}`)
+  console.log(`🏥 Health check: http://localhost:${process.env.PORT || 3000}/health`)
 })
 
 setInterval(() => {
